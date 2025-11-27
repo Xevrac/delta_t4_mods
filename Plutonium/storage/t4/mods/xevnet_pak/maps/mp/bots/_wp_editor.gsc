@@ -25,10 +25,10 @@ init()
 	if ( !getdvarint( "developer" ) )
 	{
 		setdvar( "developer_script", 1 );
-		setdvar( "developer", 1 );
+		setdvar( "developer", 2 );
 		
-		setdvar( "sv_mapRotation", "map " + getdvar( "mapname" ) );
-		exitlevel( false );
+		BotBuiltinCmdExec( "devmap " + getdvar( "mapname" ) );
+		return;
 	}
 	
 	setdvar( "bots_main", 0 );
@@ -354,8 +354,13 @@ watchSaveWaypointsCommand()
 			
 			println( "********* Start Bot Warfare WPDump *********" );
 			println( level.waypointcount );
+
+			f = BotBuiltinFileOpen( filename, "write" );
 			
-			BotBuiltinFileWrite( filename, level.waypointcount + "\n", "write" );
+			if ( f > 0 )
+			{
+				BotBuiltinWriteLine( f, level.waypointcount );
+			}
 			
 			for ( i = 0; i < level.waypointcount; i++ )
 			{
@@ -388,7 +393,16 @@ watchSaveWaypointsCommand()
 				str += ",";
 				
 				println( str );
-				BotBuiltinFileWrite( filename, str + "\n", "append" );
+				
+				if ( f > 0 )
+				{
+					BotBuiltinWriteLine( f, str );
+				}
+			}
+
+			if ( f > 0 )
+			{
+				BotBuiltinFileClose( f );
 			}
 			
 			println( "\n\n\n\n\n\n" );
@@ -425,6 +439,7 @@ LoadWaypoints()
 	self deleteAllWaypoints();
 	self iprintlnbold( "Loading WPS..." );
 	load_waypoints();
+	level.waypointcount = level.waypoints.size;
 	
 	wait 1;
 	
