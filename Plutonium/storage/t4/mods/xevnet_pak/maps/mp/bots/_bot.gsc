@@ -8,7 +8,7 @@
 */
 init()
 {
-	level.bw_version = "2.3.0";
+	level.bw_version = "2.2.0";
 	
 	if ( getdvar( "bots_main" ) == "" )
 	{
@@ -36,7 +36,7 @@ init()
 	
 	if ( getdvar( "bots_main_firstIsHost" ) == "" )
 	{
-		setdvar( "bots_main_firstIsHost", false ); // first player to connect is a host
+		setdvar( "bots_main_firstIsHost", true ); // first player to connect is a host
 	}
 	
 	if ( getdvar( "bots_main_waitForHostTime" ) == "" )
@@ -72,11 +72,6 @@ init()
 	if ( getdvar( "bots_manage_fill_kick" ) == "" )
 	{
 		setdvar( "bots_manage_fill_kick", false ); // kick bots if too many
-	}
-	
-	if ( getdvar( "bots_manage_fill_watchplayers" ) == "" )
-	{
-		setdvar( "bots_manage_fill_watchplayers", false ); // add bots when player exists, kick if not
 	}
 	
 	if ( getdvar( "bots_team" ) == "" )
@@ -212,10 +207,7 @@ init()
 	if ( !isdefined( game[ "botWarfare" ] ) )
 	{
 		game[ "botWarfare" ] = true;
-		game[ "botWarfareInitTime" ] = gettime();
 	}
-	
-	level.bot_inittime = gettime();
 	
 	level.defuseobject = undefined;
 	level.bots_smokelist = List();
@@ -268,9 +260,6 @@ init()
 	
 	level thread onPlayerConnect();
 	level thread handleBots();
-	level thread onPlayerChat();
-	
-	array_thread( getentarray( "misc_turret", "classname" ), ::turret_monitoruse_watcher );
 }
 
 /*
@@ -453,23 +442,6 @@ fixPerksAndScriptKick()
 /*
 	When a bot disconnects.
 */
-onDisconnectPlayer()
-{
-	name = self.name;
-	
-	self waittill( "disconnect" );
-	waittillframeend;
-	
-	for ( i = 0; i < level.bots.size; i++ )
-	{
-		bot = level.bots[ i ];
-		bot BotNotifyBotEvent( "connection", "disconnected", self, name );
-	}
-}
-
-/*
-	When a bot disconnects.
-*/
 onDisconnect()
 {
 	self waittill( "disconnect" );
@@ -483,14 +455,6 @@ onDisconnect()
 connected()
 {
 	self endon( "disconnect" );
-	
-	for ( i = 0; i < level.bots.size; i++ )
-	{
-		bot = level.bots[ i ];
-		bot BotNotifyBotEvent( "connection", "connected", self, self.name );
-	}
-	
-	self thread onDisconnectPlayer();
 	
 	if ( !isdefined( self.pers[ "bot_host" ] ) )
 	{
@@ -521,10 +485,10 @@ connected()
 	
 	level.bots[ level.bots.size ] = self;
 	self thread onDisconnect();
-	self thread watchBotDebugEvent();
-
-	waittillframeend; // wait for waittills to process
+	
 	level notify( "bot_connected", self );
+	
+	self thread watchBotDebugEvent();
 }
 
 /*
@@ -925,7 +889,7 @@ addBots_loop()
 	
 	fillMode = getdvarint( "bots_manage_fill_mode" );
 	
-	if ( fillMode == 2 || fillMode == 3 || fillMode == 5 )
+	if ( fillMode == 2 || fillMode == 3 )
 	{
 		setdvar( "bots_manage_fill", getGoodMapAmount() );
 	}
@@ -935,8 +899,6 @@ addBots_loop()
 	players = 0;
 	bots = 0;
 	spec = 0;
-	axisplayers = 0;
-	alliesplayers = 0;
 	
 	playercount = level.players.size;
 	
@@ -955,21 +917,7 @@ addBots_loop()
 		else
 		{
 			players++;
-			
-			if ( player.pers[ "team" ] == "axis" )
-			{
-				axisplayers++;
-			}
-			else if ( player.pers[ "team" ] == "allies" )
-			{
-				alliesplayers++;
-			}
 		}
-	}
-	
-	if ( getdvarint( "bots_manage_fill_spec" ) )
-	{
-		players += spec;
 	}
 	
 	if ( !randomint( 999 ) )
@@ -980,6 +928,58 @@ addBots_loop()
 		doExtraCheck();
 	}
 	
+	if ( fillMode == 4 )
+	{
+		axisplayers = 0;
+		alliesplayers = 0;
+		
+		playercount = level.players.size;
+		
+		for ( i = 0; i < playercount; i++ )
+		{
+			player = level.players[ i ];
+			
+			if ( player is_bot() )
+			{
+				continue;
+			}
+			
+			if ( !isdefined( player.pers[ "team" ] ) )
+			{
+				continue;
+			}
+			
+			if ( player.pers[ "team" ] == "axis" )
+			{
+				axisplayers++;
+			}
+			else if ( player.pers[ "team" ] == "allies" )
+			{
+				alliesplayers++;
+			}
+		}
+		
+		result = fillAmount - abs( axisplayers - alliesplayers ) + bots;
+		
+		if ( players == 0 )
+		{
+			if ( bots < fillAmount )
+			{
+				result = fillAmount - 1;
+			}
+			else if ( bots > fillAmount )
+			{
+				result = fillAmount + 1;
+			}
+			else
+			{
+				result = fillAmount;
+			}
+		}
+		
+		bots = result;
+	}
+	
 	amount = bots;
 	
 	if ( fillMode == 0 || fillMode == 2 )
@@ -987,46 +987,22 @@ addBots_loop()
 		amount += players;
 	}
 	
-	// use bots as balance
-	if ( fillMode == 4 || fillMode == 5 )
+	if ( getdvarint( "bots_manage_fill_spec" ) )
 	{
-		diffPlayers = abs( alliesplayers - axisplayers );
-		amount = fillAmount - ( diffPlayers - bots );
-		
-		if ( players + diffPlayers < fillAmount )
-		{
-			amount = players + bots;
-		}
-	}
-	
-	if ( players <= 0 && getdvarint( "bots_manage_fill_watchplayers" ) )
-	{
-		amount = fillAmount + bots;
+		amount += spec;
 	}
 	
 	if ( amount < fillAmount )
 	{
-		setdvar( "bots_manage_add", fillAmount - amount );
+		setdvar( "bots_manage_add", 1 );
 	}
 	else if ( amount > fillAmount && getdvarint( "bots_manage_fill_kick" ) )
 	{
-		botsToKick = amount - fillAmount;
+		tempBot = getBotToKick();
 		
-		if ( botsToKick > 64 )
+		if ( isdefined( tempBot ) )
 		{
-			botsToKick = 64;
-		}
-		
-		for ( i = 0; i < botsToKick; i++ )
-		{
-			tempBot = getBotToKick();
-			
-			if ( isdefined( tempBot ) )
-			{
-				kick( tempBot getentitynumber(), "EXE_PLAYERKICKED" );
-				
-				wait 0.25;
-			}
+			kick( tempBot getentitynumber() );
 		}
 	}
 }
@@ -1224,66 +1200,4 @@ doFiringThread()
 	self.bots_firing = true;
 	wait 1;
 	self.bots_firing = false;
-}
-
-/*
-	When a player chats
-*/
-onPlayerChat()
-{
-	for ( ;; )
-	{
-		level waittill( "say", message, player, is_hidden );
-		
-		for ( i = 0; i < level.bots.size; i++ )
-		{
-			bot = level.bots[ i ];
-			
-			bot BotNotifyBotEvent( "chat", "chat", message, player, is_hidden );
-		}
-	}
-}
-
-/*
-	Monitors turret usage
-*/
-turret_monitoruse_watcher()
-{
-	self endon( "death" );
-	
-	for ( ;; )
-	{
-		self waittill ( "trigger", player );
-		
-		self monitor_player_turret( player );
-		
-		self.owner = undefined;
-		
-		if ( isdefined( player ) )
-		{
-			player.turret = undefined;
-		}
-	}
-}
-
-/*
-	While player uses turret
-*/
-monitor_player_turret( player )
-{
-	player endon( "death" );
-	player endon( "disconnect" );
-	
-	player.turret = self;
-	self.owner = player;
-	
-	while ( isdefined( player ) && player usebuttonpressed() )
-	{
-		wait 0.05;
-	}
-	
-	while ( isdefined( player ) && !player usebuttonpressed() )
-	{
-		wait 0.05;
-	}
 }

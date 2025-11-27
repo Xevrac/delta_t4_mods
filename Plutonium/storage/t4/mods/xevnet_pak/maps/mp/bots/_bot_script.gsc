@@ -1729,7 +1729,7 @@ bot_think_camp_loop()
 	
 	self SetScriptGoal( campSpot.origin, 16 );
 	
-	time = randomintrange( 30, 90 );
+	time = randomintrange( 10, 20 );
 	
 	self BotNotifyBotEvent( "camp", "go", campSpot, time );
 	
@@ -1788,17 +1788,7 @@ killCampAfterTime( time )
 	self endon( "disconnect" );
 	self endon( "kill_camp_bot" );
 	
-	timeleft = maps\mp\gametypes\_globallogic::gettimeremaining() / 1000;
-	
-	while ( time > 0 && timeleft >= 60 )
-	{
-		wait 1;
-		timeleft = maps\mp\gametypes\_globallogic::gettimeremaining() / 1000;
-		time--;
-	}
-	
-	wait 0.05;
-
+	wait time + 0.05;
 	self ClearScriptGoal();
 	self ClearScriptAimPos();
 	
@@ -3020,12 +3010,6 @@ bot_killstreak_think_loop()
 {
 	curWeap = self getcurrentweapon();
 	
-	if ( curWeap == "radar_mp" || curWeap == "dogs_mp" || curWeap == "artillery_mp" )
-	{
-		self thread changeToWeapon( self.lastdroppableweapon );
-		return;
-	}
-	
 	if ( curWeap == "none" || !isWeaponDroppable( curWeap ) )
 	{
 		curWeap = self.lastdroppableweapon;
@@ -3302,7 +3286,6 @@ bot_target_vehicle_loop()
 	myEye = self getEyePos();
 	target = undefined;
 	myAngles = self getplayerangles();
-	hasRocket = self getammocount( "bazooka_mp" );
 	
 	for ( i = 0; i < level.players.size; i++ )
 	{
@@ -3335,7 +3318,7 @@ bot_target_vehicle_loop()
 			continue;
 		}
 		
-		if ( getConeDot( vehicle.origin, self.origin, myAngles ) < 0.6 && !hasRecon && !hasRocket )
+		if ( getConeDot( vehicle.origin, self.origin, myAngles ) < 0.6 && !hasRecon )
 		{
 			continue;
 		}
@@ -3367,9 +3350,14 @@ bot_target_vehicle()
 	
 	for ( ;; )
 	{
-		wait( randomintrange( 1, 3 ) * 0.5 );
+		wait( randomintrange( 1, 3 ) );
 		
 		if ( self HasScriptEnemy() )
+		{
+			continue;
+		}
+		
+		if ( self.pers[ "bots" ][ "skill" ][ "base" ] <= 1 )
 		{
 			continue;
 		}
@@ -3390,7 +3378,7 @@ bot_vehicle_attack( target )
 {
 	target endon( "death" );
 	
-	wait_time = randomintrange( 14, 20 ) * 2;
+	wait_time = randomintrange( 14, 20 );
 	
 	for ( i = 0; i < wait_time; i++ )
 	{

@@ -369,20 +369,6 @@ watchPickupGun()
 			continue;
 		}
 		
-		// todo have bots use turrets instead of just kicking them off of it
-		if ( isdefined( self.turret ) )
-		{
-			self thread use( 0.5 );
-			continue;
-		}
-		
-		// todo have bots use vehicles properly
-		if ( self isinvehicle() )
-		{
-			self thread use( 0.5 );
-			continue;
-		}
-		
 		weap = self getcurrentweapon();
 		
 		if ( weap != "none" && self getammocount( weap ) )
@@ -584,12 +570,6 @@ onWeaponChange()
 		{
 			first = false;
 			newWeapon = self getcurrentweapon();
-			
-			// hack fix for botstop overridding weapon
-			if ( newWeapon != "none" )
-			{
-				self switchtoweapon( newWeapon );
-			}
 		}
 		else
 		{
@@ -937,22 +917,19 @@ updateBones()
 	self endon( "disconnect" );
 	self endon( "death" );
 	
+	bones = strtok( self.pers[ "bots" ][ "skill" ][ "bones" ], "," );
+	waittime = self.pers[ "bots" ][ "skill" ][ "bone_update_interval" ];
+	
 	for ( ;; )
 	{
-		oldbones = self.pers[ "bots" ][ "skill" ][ "bones" ];
-		bones = strtok( oldbones, "," );
+		self waittill_notify_or_timeout( "new_enemy", waittime );
 		
-		while ( oldbones == self.pers[ "bots" ][ "skill" ][ "bones" ] )
+		if ( !isdefined( self.bot.target ) )
 		{
-			self waittill_notify_or_timeout( "new_enemy", self.pers[ "bots" ][ "skill" ][ "bone_update_interval" ] );
-			
-			if ( !isdefined( self.bot.target ) )
-			{
-				continue;
-			}
-			
-			self.bot.target.bone = PickRandom( bones );
+			continue;
 		}
+		
+		self.bot.target.bone = PickRandom( bones );
 	}
 }
 
@@ -1059,23 +1036,6 @@ targetObjUpdateNoTrace( obj )
 	obj.no_trace_time += 50;
 	obj.trace_time = 0;
 	obj.didlook = false;
-}
-
-/*
-	Returns true if myEye can see the bone of self
-*/
-checkTraceForBone( myEye, bone )
-{
-	boneLoc = self gettagorigin( bone );
-	
-	if ( !isdefined( boneLoc ) )
-	{
-		return false;
-	}
-	
-	trace = bullettrace( myEye, boneLoc, false, undefined );
-	
-	return ( sighttracepassed( myEye, boneLoc, false, undefined ) && ( trace[ "fraction" ] >= 1.0 || trace[ "surfacetype" ] == "glass" ) );
 }
 
 /*
@@ -1189,9 +1149,21 @@ target_loop()
 				continue;
 			}
 			
-			canTargetPlayer = ( ( player checkTraceForBone( myEye, "j_head" ) ||
-						player checkTraceForBone( myEye, "j_ankle_le" ) ||
-						player checkTraceForBone( myEye, "j_ankle_ri" ) )
+			targetHead = player gettagorigin( "j_head" );
+			targetAnkleLeft = player gettagorigin( "j_ankle_le" );
+			targetAnkleRight = player gettagorigin( "j_ankle_ri" );
+			
+			traceHead = bullettrace( myEye, targetHead, false, undefined );
+			traceAnkleLeft = bullettrace( myEye, targetAnkleLeft, false, undefined );
+			traceAnkleRight = bullettrace( myEye, targetAnkleRight, false, undefined );
+			
+			canTargetPlayer = ( ( sighttracepassed( myEye, targetHead, false, undefined ) ||
+						sighttracepassed( myEye, targetAnkleLeft, false, undefined ) ||
+						sighttracepassed( myEye, targetAnkleRight, false, undefined ) )
+						
+					&& ( ( traceHead[ "fraction" ] >= 1.0 || traceHead[ "surfacetype" ] == "glass" ) ||
+						( traceAnkleLeft[ "fraction" ] >= 1.0 || traceAnkleLeft[ "surfacetype" ] == "glass" ) ||
+						( traceAnkleRight[ "fraction" ] >= 1.0 || traceAnkleRight[ "surfacetype" ] == "glass" ) )
 						
 					&& ( SmokeTrace( myEye, player.origin, level.smokeradius ) ||
 						daDist < level.bots_maxknifedistance * 4 )
@@ -1636,7 +1608,7 @@ aim_loop()
 					{
 						self thread bot_lookat( target gettagorigin( "j_spine4" ), 0.05 );
 					}
-					else if ( !nadeAimOffset && conedot > 0.999995 && lengthsquared( aimoffset ) < 0.05 )
+					else if ( !nadeAimOffset && conedot > 0.999 && lengthsquared( aimoffset ) < 0.05 )
 					{
 						self thread bot_lookat( aimpos, 0.05 );
 					}
@@ -1660,7 +1632,7 @@ aim_loop()
 					
 					conedot = getConeDot( aimpos, eyePos, angles );
 					
-					if ( ( isdefined( self.bot.knifing_target ) && self.bot.knifing_target == target ) || ( !nadeAimOffset && conedot > 0.999995 && lengthsquared( aimoffset ) < 0.05 ) )
+					if ( ( isdefined( self.bot.knifing_target ) && self.bot.knifing_target == target ) || ( !nadeAimOffset && conedot > 0.999 && lengthsquared( aimoffset ) < 0.05 ) )
 					{
 						self thread bot_lookat( aimpos, 0.05 );
 					}
@@ -1678,7 +1650,7 @@ aim_loop()
 					
 					conedot = getConeDot( aimpos, eyePos, angles );
 					
-					if ( !nadeAimOffset && conedot > 0.999995 && lengthsquared( aimoffset ) < 0.05 )
+					if ( !nadeAimOffset && conedot > 0.999 && lengthsquared( aimoffset ) < 0.05 )
 					{
 						self thread bot_lookat( aimpos, 0.05 );
 					}
@@ -1847,7 +1819,6 @@ aim()
 	for ( ;; )
 	{
 		wait 0.05;
-		waittillframeend;
 		
 		if ( level.inprematchperiod || level.gameended || self.bot.isfrozen || self isFlared() )
 		{
@@ -2039,9 +2010,9 @@ walk_loop()
 	
 	dist = 16;
 	
-	if ( level.waypoints.size )
+	if ( level.waypointcount )
 	{
-		goal = level.waypoints[ randomint( level.waypoints.size ) ].origin;
+		goal = level.waypoints[ randomint( level.waypointcount ) ].origin;
 	}
 	else
 	{
@@ -2722,11 +2693,11 @@ fire( what )
 	
 	if ( what )
 	{
-		self BotBuiltinBotAction( "+attack" );
+		self BotBuiltinBotAction( "+fire" );
 	}
 	else
 	{
-		self BotBuiltinBotAction( "-attack" );
+		self BotBuiltinBotAction( "-fire" );
 	}
 }
 
@@ -2745,14 +2716,14 @@ pressFire( time )
 		time = 0.05;
 	}
 	
-	self BotBuiltinBotAction( "+attack" );
+	self BotBuiltinBotAction( "+fire" );
 	
 	if ( time )
 	{
 		wait time;
 	}
 	
-	self BotBuiltinBotAction( "-attack" );
+	self BotBuiltinBotAction( "-fire" );
 }
 
 /*
@@ -2764,11 +2735,11 @@ ads( what )
 	
 	if ( what )
 	{
-		self BotBuiltinBotAction( "+speed_throw" );
+		self BotBuiltinBotAction( "+ads" );
 	}
 	else
 	{
-		self BotBuiltinBotAction( "-speed_throw" );
+		self BotBuiltinBotAction( "-ads" );
 	}
 }
 
@@ -2787,14 +2758,14 @@ pressADS( time )
 		time = 0.05;
 	}
 	
-	self BotBuiltinBotAction( "+speed_throw" );
+	self BotBuiltinBotAction( "+ads" );
 	
 	if ( time )
 	{
 		wait time;
 	}
 	
-	self BotBuiltinBotAction( "-speed_throw" );
+	self BotBuiltinBotAction( "-ads" );
 }
 
 /*
@@ -2848,8 +2819,8 @@ jump()
 */
 stand()
 {
-	self BotBuiltinBotAction( "-crouch" );
-	self BotBuiltinBotAction( "-prone" );
+	self BotBuiltinBotAction( "-gocrouch" );
+	self BotBuiltinBotAction( "-goprone" );
 }
 
 /*
@@ -2857,8 +2828,8 @@ stand()
 */
 crouch()
 {
-	self BotBuiltinBotAction( "+crouch" );
-	self BotBuiltinBotAction( "-prone" );
+	self BotBuiltinBotAction( "+gocrouch" );
+	self BotBuiltinBotAction( "-goprone" );
 }
 
 /*
@@ -2866,8 +2837,8 @@ crouch()
 */
 prone()
 {
-	self BotBuiltinBotAction( "-crouch" );
-	self BotBuiltinBotAction( "+prone" );
+	self BotBuiltinBotAction( "-gocrouch" );
+	self BotBuiltinBotAction( "+goprone" );
 }
 
 /*
@@ -2954,7 +2925,7 @@ bot_lookat( pos, time, vel, doAimPredict )
 	for ( i = 0; i < steps; i++ )
 	{
 		myAngle = ( angleclamp180( myAngle[ 0 ] + X ), angleclamp180( myAngle[ 1 ] + Y ), 0 );
-		self BotBuiltinBotAngles( myAngle );
+		self setplayerangles( myAngle );
 		wait 0.05;
 	}
 }

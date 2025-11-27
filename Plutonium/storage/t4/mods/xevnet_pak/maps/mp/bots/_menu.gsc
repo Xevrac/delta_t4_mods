@@ -60,6 +60,7 @@ init_menu()
 	self.menuinit = true;
 	
 	self.menuopen = false;
+	self.menu_player = undefined;
 	self.submenu = "Main";
 	self.curs[ "Main" ][ "X" ] = 0;
 	self AddOptions();
@@ -72,47 +73,6 @@ init_menu()
 	self thread watchDisconnect();
 	
 	self thread doGreetings();
-}
-
-destroyFixed()
-{
-	if ( !isdefined( self ) )
-	{
-		return;
-	}
-	
-	self destroy();
-}
-
-removeChildFixed( element )
-{
-	temp = [];
-	
-	for ( i = 0; i < self.children.size ; i++ )
-	{
-		if ( isdefined( self.children[ i ] ) && self.children[ i ] != element )
-		{
-			self.children[ i ].index = temp.size;
-			temp[ temp.size ] = self.children[ i ];
-		}
-	}
-	
-	self.children = temp;
-}
-
-destroyElemFixed()
-{
-	if ( !isdefined( self ) )
-	{
-		return;
-	}
-	
-	if ( isdefined( self.parent ) )
-	{
-		self.parent removeChildFixed( self );
-	}
-	
-	self destroyelem();
 }
 
 kill_menu()
@@ -133,7 +93,7 @@ watchDisconnect()
 			{
 				if ( isdefined( self.menutexty[ i ] ) )
 				{
-					self.menutexty[ i ] destroyElemFixed();
+					self.menutexty[ i ] destroy();
 				}
 			}
 		}
@@ -144,7 +104,7 @@ watchDisconnect()
 			{
 				if ( isdefined( self.menutext[ i ] ) )
 				{
-					self.menutext[ i ] destroyElemFixed();
+					self.menutext[ i ] destroy();
 				}
 			}
 		}
@@ -153,18 +113,18 @@ watchDisconnect()
 		{
 			if ( isdefined( self.menu[ "X" ][ "Shader" ] ) )
 			{
-				self.menu[ "X" ][ "Shader" ] destroyElemFixed();
+				self.menu[ "X" ][ "Shader" ] destroy();
 			}
 			
 			if ( isdefined( self.menu[ "X" ][ "Scroller" ] ) )
 			{
-				self.menu[ "X" ][ "Scroller" ] destroyElemFixed();
+				self.menu[ "X" ][ "Scroller" ] destroy();
 			}
 		}
 		
 		if ( isdefined( self.menuversionhud ) )
 		{
-			self.menuversionhud destroyFixed();
+			self.menuversionhud destroy();
 		}
 	}
 }
@@ -372,7 +332,7 @@ OpenSub( menu, menu2 )
 			{
 				if ( isdefined( self.menutext[ i ] ) )
 				{
-					self.menutext[ i ] destroyElemFixed();
+					self.menutext[ i ] destroy();
 				}
 			}
 		}
@@ -381,18 +341,18 @@ OpenSub( menu, menu2 )
 		{
 			if ( isdefined( self.menu[ "X" ][ "Shader" ] ) )
 			{
-				self.menu[ "X" ][ "Shader" ] destroyElemFixed();
+				self.menu[ "X" ][ "Shader" ] destroy();
 			}
 			
 			if ( isdefined( self.menu[ "X" ][ "Scroller" ] ) )
 			{
-				self.menu[ "X" ][ "Scroller" ] destroyElemFixed();
+				self.menu[ "X" ][ "Scroller" ] destroy();
 			}
 		}
 		
 		if ( isdefined( self.menuversionhud ) )
 		{
-			self.menuversionhud destroyFixed();
+			self.menuversionhud destroy();
 		}
 		
 		for ( i = 0 ; i < self.option[ "Name" ][ self.submenu ].size ; i++ )
@@ -442,7 +402,7 @@ OpenSub( menu, menu2 )
 			{
 				if ( isdefined( self.menutexty[ i ] ) )
 				{
-					self.menutexty[ i ] destroyElemFixed();
+					self.menutexty[ i ] destroy();
 				}
 			}
 		}
@@ -466,11 +426,11 @@ CursMove( direction )
 	
 	if ( self.submenu == "Main" )
 	{
+		self.menu[ "X" ][ "Scroller" ].x = self.menutext[ self.curs[ "Main" ][ "X" ] ].x;
+		self.menu[ "X" ][ "Scroller" ].y = self.menutext[ self.curs[ "Main" ][ "X" ] ].y;
+		
 		if ( isdefined( self.menutext ) )
 		{
-			self.menu[ "X" ][ "Scroller" ].x = self.menutext[ self.curs[ "Main" ][ "X" ] ].x;
-			self.menu[ "X" ][ "Scroller" ].y = self.menutext[ self.curs[ "Main" ][ "X" ] ].y;
-			
 			for ( i = 0; i < self.menutext.size; i++ )
 			{
 				if ( isdefined( self.menutext[ i ] ) )
@@ -618,7 +578,7 @@ ExitSub()
 		{
 			if ( isdefined( self.menutexty[ i ] ) )
 			{
-				self.menutexty[ i ] destroyElemFixed();
+				self.menutexty[ i ] destroy();
 			}
 		}
 	}
@@ -643,7 +603,7 @@ ExitMenu()
 		{
 			if ( isdefined( self.menutext[ i ] ) )
 			{
-				self.menutext[ i ] destroyElemFixed();
+				self.menutext[ i ] destroy();
 			}
 		}
 	}
@@ -652,18 +612,18 @@ ExitMenu()
 	{
 		if ( isdefined( self.menu[ "X" ][ "Shader" ] ) )
 		{
-			self.menu[ "X" ][ "Shader" ] destroyElemFixed();
+			self.menu[ "X" ][ "Shader" ] destroy();
 		}
 		
 		if ( isdefined( self.menu[ "X" ][ "Scroller" ] ) )
 		{
-			self.menu[ "X" ][ "Scroller" ] destroyElemFixed();
+			self.menu[ "X" ][ "Scroller" ] destroy();
 		}
 	}
 	
 	if ( isdefined( self.menuversionhud ) )
 	{
-		self.menuversionhud destroyFixed();
+		self.menuversionhud destroy();
 	}
 	
 	self.menuopen = false;
@@ -766,10 +726,6 @@ AddOptions()
 			
 		case 4:
 			_temp = "bots used as team balance";
-			break;
-			
-		case 5:
-			_temp = "bots used as team balance, adjust to map";
 			break;
 			
 		default:
@@ -1344,11 +1300,6 @@ man_bots( a, b )
 				case 3:
 					setdvar( "bots_manage_fill_mode", 4 );
 					self iprintln( "bot_fill will now use bots as team balance." );
-					break;
-					
-				case 4:
-					setdvar( "bots_manage_fill_mode", 5 );
-					self iprintln( "bot_fill will now use bots as team balance, adjusting to map." );
 					break;
 					
 				default:

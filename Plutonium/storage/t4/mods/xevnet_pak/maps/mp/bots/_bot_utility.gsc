@@ -39,6 +39,30 @@ BotBuiltinPrintConsole( s )
 }
 
 /*
+	Writes to the file, mode can be "append" or "write"
+*/
+BotBuiltinFileWrite( file, contents, mode )
+{
+	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "filewrite" ] ) )
+	{
+		[[ level.bot_builtins[ "filewrite" ] ]]( file, contents, mode );
+	}
+}
+
+/*
+	Returns the whole file as a string
+*/
+BotBuiltinFileRead( file )
+{
+	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "fileread" ] ) )
+	{
+		return [[ level.bot_builtins[ "fileread" ] ]]( file );
+	}
+	
+	return undefined;
+}
+
+/*
 	Test if a file exists
 */
 BotBuiltinFileExists( file )
@@ -112,98 +136,6 @@ BotBuiltinBotMeleeParams( yaw, dist )
 }
 
 /*
-	Sets angles
-*/
-BotBuiltinBotAngles( angles )
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "botangles" ] ) )
-	{
-		self [[ level.bot_builtins[ "botangles" ] ]]( angles );
-	}
-}
-
-/*
-	Opens the file
-*/
-BotBuiltinFileOpen( file, mode )
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "fs_fopen" ] ) )
-	{
-		return [[ level.bot_builtins[ "fs_fopen" ] ]]( file, mode );
-	}
-	
-	return 0;
-}
-
-/*
-	Closes the file
-*/
-BotBuiltinFileClose( fh )
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "fs_fclose" ] ) )
-	{
-		[[ level.bot_builtins[ "fs_fclose" ] ]]( fh );
-	}
-}
-
-/*
-	Closes the file
-*/
-BotBuiltinReadLine( fh )
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "fs_readline" ] ) )
-	{
-		return [[ level.bot_builtins[ "fs_readline" ] ]]( fh );
-	}
-	
-	return undefined;
-}
-
-/*
-	Closes the file
-*/
-BotBuiltinWriteLine( fh, contents )
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "fs_writeline" ] ) )
-	{
-		[[ level.bot_builtins[ "fs_writeline" ] ]]( fh, contents );
-	}
-}
-
-/*
-*/
-BotBuiltinCmdExec( what )
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "cmdexec" ] ) )
-	{
-		[[ level.bot_builtins[ "cmdexec" ] ]]( what );
-	}
-}
-
-/*
-*/
-BotBuiltinNotifyOnPlayerCommand( cmd, notif )
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "notifyonplayercommand" ] ) )
-	{
-		self [[ level.bot_builtins[ "notifyonplayercommand" ] ]]( cmd, notif );
-	}
-}
-
-/*
-	waw doesnt have
-*/
-BotBuiltinIsHost()
-{
-	if ( isdefined( level.bot_builtins ) && isdefined( level.bot_builtins[ "ishost" ] ) )
-	{
-		return self [[ level.bot_builtins[ "ishost" ] ]]();
-	}
-	
-	return false;
-}
-
-/*
 	Returns if player is the host
 */
 is_host()
@@ -255,7 +187,7 @@ doHostCheck()
 		}
 	}
 	
-	if ( !self BotBuiltinIsHost() && !result )
+	if ( !result )
 	{
 		return;
 	}
@@ -436,21 +368,11 @@ BotStopMoving( what )
 }
 
 /*
-	Waits till frame end so that if two notifies happen in the same frame, the other will not be missed.
-*/
-BotNotifyBotEvent_( msg, a, b, c, d, e, f, g )
-{
-	self endon( "disconnect" );
-	waittillframeend; // wait for the waittills to setup again
-	self notify( "bot_event", msg, a, b, c, d, e, f, g );
-}
-
-/*
 	Notify the bot chat message
 */
 BotNotifyBotEvent( msg, a, b, c, d, e, f, g )
 {
-	self thread BotNotifyBotEvent_( msg, a, b, c, d, e, f, g );
+	self notify( "bot_event", msg, a, b, c, d, e, f, g );
 }
 
 /*
@@ -1494,6 +1416,61 @@ parseTokensIntoWaypoint( tokens )
 }
 
 /*
+	Function to extract lines from a file specified by 'filename' and store them in a result structure.
+*/
+getWaypointLinesFromFile( filename )
+{
+	// Create a structure to store the result, including an array to hold individual lines.
+	result = spawnstruct();
+	result.lines = [];
+	
+	// Read the entire content of the file into the 'waypointStr' variable.
+	// Note: max string length in GSC is 65535.
+	waypointStr = BotBuiltinFileRead( filename );
+	
+	// If the file is empty or not defined, return the empty result structure.
+	if ( !isdefined( waypointStr ) )
+	{
+		return result;
+	}
+	
+	// Variables to track the current line's character count and starting position.
+	linecount = 0;
+	linestart = 0;
+	
+	// Iterate through each character in the 'waypointStr'.
+	for ( i = 0; i < waypointStr.size; i++ )
+	{
+		// Check for newline characters '\n' or '\r'.
+		if ( waypointStr[ i ] == "\n" || waypointStr[ i ] == "\r" )
+		{
+			// Extract the current line using 'getsubstr' and store it in the result array.
+			result.lines[ result.lines.size ] = getsubstr( waypointStr, linestart, linestart + linecount );
+			
+			// If the newline is '\r\n', skip the next character.
+			if ( waypointStr[ i ] == "\r" && i < waypointStr.size - 1 && waypointStr[ i + 1 ] == "\n" )
+			{
+				i++;
+			}
+			
+			// Reset linecount and update linestart for the next line.
+			linecount = 0;
+			linestart = i + 1;
+			continue;
+		}
+		
+		// Increment linecount for the current line.
+		linecount++;
+	}
+	
+	// Store the last line (or the only line if there are no newline characters) in the result array.
+	result.lines[ result.lines.size ] = getsubstr( waypointStr, linestart, linestart + linecount );
+	
+	// Return the result structure containing the array of extracted lines.
+	return result;
+}
+
+/*
 	Read from file a csv, and returns an array of waypoints
 */
 readWpsFromFile( mapname )
@@ -1506,39 +1483,25 @@ readWpsFromFile( mapname )
 		return waypoints;
 	}
 	
-	f = BotBuiltinFileOpen( filename, "read" );
+	res = getWaypointLinesFromFile( filename );
 	
-	if ( f < 1 )
+	if ( !res.lines.size )
 	{
 		return waypoints;
 	}
 	
 	BotBuiltinPrintConsole( "Attempting to read waypoints from " + filename );
 	
-	line = BotBuiltinReadLine( f );
+	waypointCount = int( res.lines[ 0 ] );
 	
-	if ( isdefined( line ) )
+	for ( i = 1; i <= waypointCount; i++ )
 	{
-		waypointCount = int( line );
+		tokens = strtok( res.lines[ i ], "," );
 		
-		for ( i = 1; i <= waypointCount; i++ )
-		{
-			line = BotBuiltinReadLine( f );
-			
-			if ( !isdefined( line ) )
-			{
-				break;
-			}
-			
-			tokens = strtok( line, "," );
-			
-			waypoint = parseTokensIntoWaypoint( tokens );
-			
-			waypoints[ i - 1 ] = waypoint;
-		}
+		waypoint = parseTokensIntoWaypoint( tokens );
+		
+		waypoints[ i - 1 ] = waypoint;
 	}
-	
-	BotBuiltinFileClose( f );
 	
 	return waypoints;
 }
@@ -1550,6 +1513,7 @@ load_waypoints()
 {
 	mapname = getdvar( "mapname" );
 	
+	level.waypointcount = 0;
 	level.waypointusage = [];
 	level.waypointusage[ "allies" ] = [];
 	level.waypointusage[ "axis" ] = [];
@@ -1586,7 +1550,9 @@ load_waypoints()
 		BotBuiltinPrintConsole( "No waypoints loaded!" );
 	}
 	
-	for ( i = level.waypoints.size - 1; i >= 0; i-- )
+	level.waypointcount = level.waypoints.size;
+	
+	for ( i = 0; i < level.waypointcount; i++ )
 	{
 		if ( !isdefined( level.waypoints[ i ].children ) || !isdefined( level.waypoints[ i ].children.size ) )
 		{
@@ -1685,7 +1651,7 @@ getWaypointsOfType( type )
 {
 	answer = [];
 	
-	for ( i = level.waypoints.size - 1; i >= 0; i-- )
+	for ( i = 0; i < level.waypointcount; i++ )
 	{
 		wp = level.waypoints[ i ];
 		
@@ -2625,18 +2591,16 @@ RemoveWaypointUsage( wp, team )
 		return;
 	}
 	
-	wpstr = wp + "";
-	
-	if ( !isdefined( level.waypointusage[ team ][ wpstr ] ) )
+	if ( !isdefined( level.waypointusage[ team ][ wp + "" ] ) )
 	{
 		return;
 	}
 	
-	level.waypointusage[ team ][ wpstr ]--;
+	level.waypointusage[ team ][ wp + "" ]--;
 	
-	if ( level.waypointusage[ team ][ wpstr ] <= 0 )
+	if ( level.waypointusage[ team ][ wp + "" ] <= 0 )
 	{
-		level.waypointusage[ team ][ wpstr ] = undefined;
+		level.waypointusage[ team ][ wp + "" ] = undefined;
 	}
 }
 
@@ -2648,7 +2612,7 @@ GetNearestWaypointWithSight( pos )
 	candidate = undefined;
 	dist = 2147483647;
 	
-	for ( i = level.waypoints.size - 1; i >= 0; i-- )
+	for ( i = 0; i < level.waypointcount; i++ )
 	{
 		if ( !bullettracepassed( pos + ( 0, 0, 15 ), level.waypoints[ i ].origin + ( 0, 0, 15 ), false, undefined ) )
 		{
@@ -2677,7 +2641,7 @@ getNearestWaypoint( pos )
 	candidate = undefined;
 	dist = 2147483647;
 	
-	for ( i = level.waypoints.size - 1; i >= 0; i-- )
+	for ( i = 0; i < level.waypointcount; i++ )
 	{
 		curdis = distancesquared( level.waypoints[ i ].origin, pos );
 		
@@ -2762,8 +2726,7 @@ AStarSearch( start, goal, team, greedy_path )
 		// pop bestnode from queue
 		bestNode = open.data[ 0 ];
 		open HeapRemove();
-		bestNodeStr = bestNode.index + "";
-		openset[ bestNodeStr ] = undefined;
+		openset[ bestNode.index + "" ] = undefined;
 		wp = level.waypoints[ bestNode.index ];
 		
 		// check if we made it to the goal
@@ -2773,16 +2736,14 @@ AStarSearch( start, goal, team, greedy_path )
 			
 			while ( isdefined( bestNode ) )
 			{
-				bestNodeStr = bestNode.index + "";
-				
 				if ( isdefined( team ) && isdefined( level.waypointusage ) )
 				{
-					if ( !isdefined( level.waypointusage[ team ][ bestNodeStr ] ) )
+					if ( !isdefined( level.waypointusage[ team ][ bestNode.index + "" ] ) )
 					{
-						level.waypointusage[ team ][ bestNodeStr ] = 0;
+						level.waypointusage[ team ][ bestNode.index + "" ] = 0;
 					}
 					
-					level.waypointusage[ team ][ bestNodeStr ]++;
+					level.waypointusage[ team ][ bestNode.index + "" ]++;
 				}
 				
 				// construct path
@@ -2798,7 +2759,6 @@ AStarSearch( start, goal, team, greedy_path )
 		for ( i = wp.children.size - 1; i >= 0; i-- )
 		{
 			child = wp.children[ i ];
-			childStr = child + "";
 			childWp = level.waypoints[ child ];
 			
 			penalty = 1;
@@ -2807,9 +2767,9 @@ AStarSearch( start, goal, team, greedy_path )
 			{
 				temppen = 1;
 				
-				if ( isdefined( level.waypointusage[ team ][ childStr ] ) )
+				if ( isdefined( level.waypointusage[ team ][ child + "" ] ) )
 				{
-					temppen = level.waypointusage[ team ][ childStr ]; // consider how many bots are taking this path
+					temppen = level.waypointusage[ team ][ child + "" ]; // consider how many bots are taking this path
 				}
 				
 				if ( temppen > 1 )
@@ -2828,16 +2788,16 @@ AStarSearch( start, goal, team, greedy_path )
 			newg = bestNode.g + distancesquared( wp.origin, childWp.origin ) * penalty; // bots on same team's path are more expensive
 			
 			// check if this child is in open or close with a g value less than newg
-			inopen = isdefined( openset[ childStr ] );
+			inopen = isdefined( openset[ child + "" ] );
 			
-			if ( inopen && openset[ childStr ].g <= newg )
+			if ( inopen && openset[ child + "" ].g <= newg )
 			{
 				continue;
 			}
 			
-			inclosed = isdefined( closed[ childStr ] );
+			inclosed = isdefined( closed[ child + "" ] );
 			
-			if ( inclosed && closed[ childStr ].g <= newg )
+			if ( inclosed && closed[ child + "" ].g <= newg )
 			{
 				continue;
 			}
@@ -2846,11 +2806,11 @@ AStarSearch( start, goal, team, greedy_path )
 			
 			if ( inopen )
 			{
-				node = openset[ childStr ];
+				node = openset[ child + "" ];
 			}
 			else if ( inclosed )
 			{
-				node = closed[ childStr ];
+				node = closed[ child + "" ];
 			}
 			else
 			{
@@ -2866,19 +2826,19 @@ AStarSearch( start, goal, team, greedy_path )
 			// check if in closed, remove it
 			if ( inclosed )
 			{
-				closed[ childStr ] = undefined;
+				closed[ child + "" ] = undefined;
 			}
 			
 			// check if not in open, add it
 			if ( !inopen )
 			{
 				open HeapInsert( node );
-				openset[ childStr ] = node;
+				openset[ child + "" ] = node;
 			}
 		}
 		
 		// done with children, push onto closed
-		closed[ bestNodeStr ] = bestNode;
+		closed[ bestNode.index + "" ] = bestNode;
 	}
 	
 	return [];
